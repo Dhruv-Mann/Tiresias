@@ -1,14 +1,16 @@
 """
 Tiresias - main.py
 ====================
-Phase 1: The Eyes (Basic Webcam Feed)
+Phase 2: The Eyes + Depth Perception
 
-Opens the default webcam, captures frames in real-time,
-and displays them in a window. Press 'q' to quit.
+Opens the webcam, captures frames in real-time, and displays
+both the live feed and a MiDaS depth map side by side.
+Press 'q' to quit.
 """
 
 import cv2
 import sys
+from depth_estimation import DepthEstimator
 
 
 def initialize_camera(camera_index: int = 0, width: int = 640, height: int = 480) -> cv2.VideoCapture:
@@ -27,8 +29,9 @@ def initialize_camera(camera_index: int = 0, width: int = 640, height: int = 480
 
 
 def run():
-    """Main loop: capture and display webcam frames."""
+    """Main loop: capture frames, estimate depth, and display both."""
     cap = initialize_camera()
+    depth_estimator = DepthEstimator()
 
     print("[Tiresias] Press 'q' to quit.")
 
@@ -39,7 +42,12 @@ def run():
             print("[ERROR] Failed to grab frame. Exiting.")
             break
 
+        # Generate colorized depth map
+        depth_colorized = depth_estimator.estimate(frame)
+
+        # Display both windows
         cv2.imshow("Tiresias - Live Feed", frame)
+        cv2.imshow("Tiresias - Depth Map", depth_colorized)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
