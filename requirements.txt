@@ -9,8 +9,10 @@ numpy>=2.0.0
 
 # ============================================================
 # Phase 2: Depth estimation (MiDaS)
+# NOTE: Install PyTorch separately with CUDA 12.8 for Blackwell GPUs (RTX 50xx):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 # ============================================================
 
-torch>=2.6.0
-torchvision>=0.21.0
+torch>=2.10.0
+torchvision>=0.25.0
 timm>=1.0.0
