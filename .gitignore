@@ -15,6 +15,9 @@ build/
 .vscode/
 .idea/
 
+# Explained documentation (local only)
+*_EXPLAINED.md
+
 # OS files
 .DS_Store
 Thumbs.db
