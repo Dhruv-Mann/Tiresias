@@ -1,10 +1,10 @@
 """
 Tiresias - main.py
 ====================
-Phase 3: The Eyes + Depth Perception + Object Detection
+Phase 4: The Eyes + Depth Perception + Open-Vocabulary Object Detection
 
 Opens the webcam, captures frames in real-time, and displays:
-  1. Live feed with YOLOv8 bounding boxes, labels, and zone info.
+  1. Live feed with YOLO-World bounding boxes, labels, and zone info.
   2. Colorized MiDaS depth map (RED = near, BLUE = far).
 Press 'q' to quit.
 """
