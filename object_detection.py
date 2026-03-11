@@ -148,11 +148,18 @@ class ObjectDetector:
             x1, y1, x2, y2 = det["box"]
             cx, cy = det["center"]
             label = det["label"]
-            conf = det["confidence"]
             zone = det["zone"]
+            proximity = det.get("proximity", "")
 
-            # Color based on zone: Center = Red (danger), sides = Green (safe)
-            color = (0, 0, 255) if zone == self.ZONE_CENTER else (0, 255, 0)
+            # Color based on proximity + zone
+            if proximity == "NEAR" and zone == self.ZONE_CENTER:
+                color = (0, 0, 255)       # RED — danger: near + center
+            elif proximity == "NEAR":
+                color = (0, 140, 255)     # ORANGE — near but off to the side
+            elif proximity == "MID":
+                color = (0, 255, 255)     # YELLOW — moderate distance
+            else:
+                color = (0, 255, 0)       # GREEN — far / safe
 
             # Draw bounding box
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
@@ -160,8 +167,8 @@ class ObjectDetector:
             # Draw center point
             cv2.circle(frame, (cx, cy), 5, color, -1)
 
-            # Draw label with confidence and zone
-            text = f"{label} {conf:.0%} [{zone}]"
+            # Draw label with proximity and zone
+            text = f"{label} - {proximity} [{zone}]" if proximity else f"{label} [{zone}]"
             text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
             cv2.rectangle(frame, (x1, y1 - text_size[1] - 10), (x1 + text_size[0], y1), color, -1)
             cv2.putText(frame, text, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
