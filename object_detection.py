@@ -1,37 +1,77 @@
 """
 Tiresias - object_detection.py
 ================================
-Phase 3: The Brain (Object Detection)
+Phase 4: The Brain (Object Detection — YOLO-World)
 
-Uses YOLOv8 (Ultralytics) to detect objects in webcam frames.
+Uses YOLO-World (Ultralytics) for open-vocabulary object detection.
+Unlike YOLOv8's fixed 80 COCO classes, YOLO-World can detect ANY
+object described by a text prompt — critical for blind assistance
+where we need to detect stairs, curbs, potholes, traffic lights, etc.
 Draws bounding boxes, labels, and calculates center points
 to determine if objects are in the user's path.
 """
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
+from ultralytics import YOLOWorld
+
+
+# Classes relevant to blind/visually-impaired navigation.
+# YOLO-World is open-vocabulary — add or remove classes as needed.
+DEFAULT_CLASSES = [
+    # People & animals
+    "person", "dog", "cat", "bicycle",
+    # Vehicles
+    "car", "bus", "truck", "motorcycle", "scooter",
+    # Indoor obstacles
+    "chair", "table", "couch", "bed", "door", "cabinet",
+    # Outdoor obstacles
+    "bench", "pole", "fire hydrant", "trash can", "cone",
+    "barrier", "fence", "wall",
+    # Navigation hazards
+    "stairs", "curb", "pothole",
+    # Traffic
+    "traffic light", "stop sign", "crosswalk",
+    # Common objects
+    "bag", "suitcase", "umbrella", "stroller",
+    "wheelchair", "shopping cart",
+]
 
 
 class ObjectDetector:
-    """Wraps YOLOv8 for real-time object detection with spatial awareness."""
+    """Wraps YOLO-World for real-time open-vocabulary object detection with spatial awareness."""
 
     # Frame zones: divide width into thirds (Left, Center, Right)
     ZONE_LEFT = "Left"
     ZONE_CENTER = "Center"
     ZONE_RIGHT = "Right"
 
-    def __init__(self, model_name: str = "yolov8n.pt", confidence: float = 0.5):
+    def __init__(
+        self,
+        model_name: str = "yolov8x-worldv2.pt",
+        confidence: float = 0.15,
+        classes: list[str] | None = None,
+    ):
         """
         Args:
-            model_name: YOLOv8 model variant. 'n' = nano (fastest), 's' = small,
-                        'm' = medium, 'l' = large, 'x' = extra-large (most accurate).
+            model_name: YOLO-World model variant.
+                        'yolov8s-worldv2.pt' = small (fastest),
+                        'yolov8m-worldv2.pt' = medium,
+                        'yolov8l-worldv2.pt' = large,
+                        'yolov8x-worldv2.pt' = extra-large (most accurate).
             confidence: Minimum confidence threshold for detections (0.0 - 1.0).
+            classes:    List of text class prompts for open-vocabulary detection.
+                        If None, uses DEFAULT_CLASSES (optimized for blind assistance).
         """
-        print(f"[Tiresias] Loading YOLOv8 model: {model_name}...")
-        self.model = YOLO(model_name)
+        print(f"[Tiresias] Loading YOLO-World model: {model_name}...")
+        self.model = YOLOWorld(model_name)
         self.confidence = confidence
-        print("[Tiresias] YOLOv8 model loaded successfully.")
+
+        # Set open-vocabulary classes
+        self.classes = classes or DEFAULT_CLASSES
+        self.model.set_classes(self.classes)
+        print(f"[Tiresias] YOLO-World loaded with {len(self.classes)} custom classes.")
+        print(f"[Tiresias] Classes: {', '.join(self.classes)}")
 
     def detect(self, frame: np.ndarray) -> list[dict]:
         """
