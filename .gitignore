@@ -18,6 +18,9 @@ build/
 # Explained documentation (local only)
 *_EXPLAINED.md
 
+# Model weight files (downloaded automatically on first run)
+*.pt
+
 # OS files
 .DS_Store
 Thumbs.db
