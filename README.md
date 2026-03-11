@@ -10,6 +10,8 @@ Tiresias uses a webcam to perceive the world in real-time — detecting objects,
 
 - **Real-time object detection** using YOLO-World (open-vocabulary — detects any object, not just a fixed set)
 - **Monocular depth estimation** using MiDaS (near = RED, far = BLUE)
+- **Sensor fusion** — fuses detection + depth to classify objects as NEAR / MID / FAR
+- **Audio alerts** — speaks warnings like *"person ahead, close"* using offline text-to-speech
 - **Spatial awareness** — divides the frame into Left / Center / Right zones; objects in Center are flagged as obstacles
 - **Custom class prompts** — define exactly which objects matter for navigation (stairs, curbs, potholes, traffic lights, etc.)
 
@@ -142,20 +144,58 @@ YOLOv8, even the extra-large variant with 68M+ parameters, is fundamentally limi
 
 ---
 
+### Phase 5: Sensor Fusion & Audio Engine
+
+**Goal:** Fuse detection + depth into a single perception pipeline and speak warnings aloud — making Tiresias actually usable by a blind person.
+
+**What we did:**
+- **Sensor fusion** — For each YOLO-World detection, we slice the MiDaS depth map at the bounding box ROI, compute the **median** depth, and classify it as NEAR (>170), MID (85-170), or FAR (<85).
+- Created `audio_engine.py` with a **queue-based TTS system**:
+  - A single dedicated daemon thread owns the pyttsx3 engine (avoids Windows COM threading crashes).
+  - Main thread drops speech requests into a `queue.Queue` — never blocks.
+  - Messages are spoken sequentially — no overlapping garbled audio.
+- **Priority & cooldown logic** — Only speaks for NEAR objects. Center zone gets 3s cooldown (urgent), sides get 5s cooldown. Cooldown key is `label_zone` so "person Center" and "person Left" are tracked independently.
+- **Color-coded threat visuals** — 4-level gradient: RED (near + center), ORANGE (near + side), YELLOW (mid distance), GREEN (far/safe).
+- Labels now show `person - NEAR [Center]` instead of `person 87% [Center]` — proximity is more actionable than raw confidence.
+
+**Problems faced:**
+- **pyttsx3 threading crashes** — Gemini's original plan called for `threading.Thread(target=speak_alert)` creating a new engine per thread. pyttsx3 uses Windows COM objects with thread affinity — this causes crashes and hangs. Fixed with the single-worker-thread + queue pattern.
+- **pyttsx3 engine caching bug** — Even with a single worker thread, `pyttsx3.init()` returns a cached singleton via an internal `_activeEngines` WeakValueDictionary. After one `runAndWait()`, the engine's COM event loop state corrupts on Windows, silently dropping all subsequent speech. Fixed by creating a fresh engine per speech and clearing `pyttsx3._activeEngines` after each call.
+- **Mean vs Median depth** — Initially planned to use mean, but background pixels inside rectangular bounding boxes skew the average, making close objects appear farther. Median is robust to this (up to 49% outliers can't affect it).
+- **Alert spam** — Without cooldowns, NEAR detections trigger 30 alerts/second. The cooldown dictionary with `time.monotonic()` (immune to clock changes) prevents this.
+- **Only alerting Center zone was too restrictive** — A blind person turning should still hear about nearby obstacles on their left/right. Extended alerts to all zones with zone-appropriate cooldowns.
+
+**Key decisions:**
+- Median over mean for depth ROI (robust to background pixel contamination).
+- `time.monotonic()` over `time.time()` (immune to NTP sync, DST, clock changes).
+- Daemon thread (auto-killed on exit) as safety net alongside explicit `shutdown()`.
+- Fusion logic lives in `main.py` (orchestrator), not in detection or depth modules (separation of concerns).
+
+**Files created / modified:**
+- `audio_engine.py` — new module: queue-based TTS with cooldowns (engine-per-speech + cache clearing for Windows COM reliability)
+- `main.py` — added fusion logic, depth thresholds, audio integration
+- `object_detection.py` — updated visuals: proximity labels, 4-color threat gradient
+- `requirements.txt` — added `pyttsx3`
+
+---
+
 ## Architecture
 
 ```
-main.py                  ← Entry point: camera loop, wires everything together
+main.py                  ← Entry point: fusion orchestrator, wires everything
 ├── object_detection.py  ← YOLO-World: detects objects, zones, draws annotations
-└── depth_estimation.py  ← MiDaS: monocular depth map (near=RED, far=BLUE)
+├── depth_estimation.py  ← MiDaS: monocular depth map (near=RED, far=BLUE)
+└── audio_engine.py      ← pyttsx3: non-blocking spoken alerts (queue + thread)
 ```
 
 **Data flow per frame:**
 1. Camera captures a 640×480 BGR frame.
 2. Frame → `ObjectDetector.detect()` → list of detections (label, confidence, box, center, zone).
-3. Frame + detections → `ObjectDetector.draw_detections()` → annotated frame with boxes/labels/zones.
-4. Frame → `DepthEstimator.estimate()` → colorized depth map.
-5. Both windows displayed via `cv2.imshow()`.
+3. Frame → `DepthEstimator.get_raw_depth()` → grayscale depth map (0-255, HIGH = near).
+4. `fuse_detections_with_depth()` → samples depth at each bounding box ROI → adds proximity (NEAR/MID/FAR).
+5. `AudioEngine.alert()` → if NEAR and cooldown elapsed, queues spoken warning.
+6. Frame + detections → `ObjectDetector.draw_detections()` → annotated frame with color-coded threat levels.
+7. Both windows displayed via `cv2.imshow()`.
 
 ---
 
@@ -222,6 +262,7 @@ YOLO-World is open-vocabulary — any English noun or short phrase works as a cl
 | `torch` + `torchvision` | PyTorch (MiDaS backend) |
 | `timm` | PyTorch Image Models (MiDaS dependency) |
 | `ultralytics` | YOLO-World object detection |
+| `pyttsx3` | Offline text-to-speech (audio alerts) |
 
 ---
 
