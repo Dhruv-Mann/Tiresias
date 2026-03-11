@@ -18,7 +18,9 @@ torchvision>=0.25.0
 timm>=1.0.0
 
 # ============================================================
-# Phase 3: Object detection (YOLOv8)
+# Phase 3→4: Object detection (YOLOv8 → YOLO-World)
+# YOLO-World provides open-vocabulary detection (any object class
+# via text prompts) vs YOLOv8's fixed 80 COCO classes.
 # ============================================================
 
 ultralytics>=8.3.0
